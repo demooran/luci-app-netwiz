@@ -1537,35 +1537,57 @@ EOF
 
                 elif [ "$mode" = "lan" ]; then
                     
-                    # LAN 口 120 秒安全模式防失联 (跨重启物理防砖)
-                    if [ "$arg5" = "1" ]; then
-                        log ">>> [LAN设置] 已启用 120 秒安全模式，生成物理防砖备份..."
-                        cp -p /etc/config/network /etc/config/network.netwiz_bak 2>/dev/null
-                        cp -p /etc/config/dhcp /etc/config/dhcp.netwiz_bak 2>/dev/null
-                        touch /tmp/netwiz_rollback_time
-                        
-                        (
-                            sleep 120
-                            if [ -f "/tmp/netwiz_rollback_time" ]; then
-                                logger -t Netwiz "[WATCHDOG] 🚨 LAN 120秒超时！前端未重连，执行回滚！"
-                                echo "$(date '+%F %T') [WATCHDOG] 🚨 LAN口 120秒内未重连，触发安全回滚！" >> /etc/netwiz_recovery.log
-                                cp -p /etc/config/network.netwiz_bak /etc/config/network 2>/dev/null
-                                cp -p /etc/config/dhcp.netwiz_bak /etc/config/dhcp 2>/dev/null
-                                /etc/init.d/network restart
-                                /etc/init.d/dnsmasq restart
-                                rm -f /tmp/netwiz_rollback_time
-                            fi
-                        ) </dev/null >/dev/null 2>&1 &
+                                    elif [ "$mode" = "lan" ]; then
+                    
+                    # استقبال وضع العمل المختار من الواجهة (عبر arg5)
+                    working_mode="$arg5"
+                    [ -z "$working_mode" ] && working_mode="ap"
+
+                    # كتابة وحفظ الوضع مباشرة في ملف الإعدادات الخاص بالجهاز
+                    [ ! -f /etc/config/netwiz ] && touch /etc/config/netwiz
+                    uci -q get netwiz.main >/dev/null 2>&1 || uci set netwiz.main=main
+                    uci set netwiz.main.lan_mode="$working_mode"
+                    uci commit netwiz
+
+                    # تطبيق إعدادات الـ IP والـ Netmask والـ Gateway
+                    uci set network.lan.proto= static 
+                    uci set network.lan.ipaddr="$arg1"
+                    uci set network.lan.netmask="$arg3"
+                    
+                    if [ -n "$arg2" ]; then 
+                        uci set network.lan.gateway="$arg2" 
+                    else 
+                        uci delete network.lan.gateway 2>/dev/null || true 
                     fi
 
-                    uci set network.lan.proto='static'; uci set network.lan.ipaddr="$arg1"; uci set network.lan.netmask="$arg3"
-                    if [ -n "$arg2" ]; then uci set network.lan.gateway="$arg2"; else uci delete network.lan.gateway 2>/dev/null || true; fi
-                    if [ "$arg4" = "1" ]; then
-                        uci set dhcp.lan.ignore='1'
-                        [ -n "$arg2" ] && uci set network.lan.dns="$arg2"
-                    else
-                        uci set dhcp.lan.ignore='0'; uci delete network.lan.dns 2>/dev/null || true
-                    fi
+                    # التعامل مع الأوضاع الستة وتحديث حالة الـ DHCP تلقائياً
+                    case "$working_mode" in
+                        ap|mesh|wds)
+                            uci set dhcp.lan.ignore= 1 
+                            [ -n "$arg2" ] && uci set network.lan.dns="$arg2"
+                            ;;
+                        ap_vlan|mesh_vlan|wds_vlan)
+                            uci set dhcp.lan.ignore= 1 
+                            log ">>> [VLAN Mode] تم تطبيق وضع الـ VLAN بنجاح: $working_mode"
+                            ;;
+                        *)
+                            if [ "$arg4" = "1" ]; then
+                                uci set dhcp.lan.ignore= 1 
+                                [ -n "$arg2" ] && uci set network.lan.dns="$arg2"
+                            else
+                                uci set dhcp.lan.ignore= 0 
+                                uci delete network.lan.dns 2>/dev/null || true
+                            fi
+                            ;;
+                    esac
+                    
+                    uci commit network
+                    uci commit dhcp
+                    
+                    # إعادة تشغيل شبكة الجهاز لتطبيق التعديلات مباشرة
+                    /etc/init.d/network restart &
+                    /etc/init.d/dnsmasq restart &
+
                     
                     # ==========================================
                     # IPv6 状态对齐与自愈
