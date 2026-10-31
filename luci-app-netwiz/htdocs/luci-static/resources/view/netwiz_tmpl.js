@@ -1026,6 +1026,20 @@ return view.extend({ // 继承view
          <div class="nw-setting-row">
             <div class="nw-setting-row-label">{{LBL_BYPASS}}</div>
             <label class="nw-switch"><input type="checkbox" id="lan-bypass-toggle"><span class="nw-slider"></span></label>
+            <div class="nw-value">
+   <label class="nw-value-title">{{LBL_MODE}}</label>
+   <div class="nw-value-field">
+      <select id="lan-working-mode" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:6px; padding:0 10px; background:#fff;">
+         <option value="ap">{{LAN_MODE_AP}}</option>
+         <option value="ap_vlan">{{LAN_MODE_AP_VLAN}}</option>
+         <option value="mesh">{{LAN_MODE_MESH}}</option>
+         <option value="mesh_vlan">{{LAN_MODE_MESH_VLAN}}</option>
+         <option value="wds">{{LAN_MODE_WDS}}</option>
+         <option value="wds_vlan">{{LAN_MODE_WDS_VLAN}}</option>
+      </select>
+   </div>
+</div>
+
          </div>
          <div id="lan-bypass-warning" class="nw-warn-bypass" style="display:none;">{{WARN_BYPASS}}</div>
          <div id="lan-main-warning" class="nw-warn-main">{{WARN_MAIN}}</div>
